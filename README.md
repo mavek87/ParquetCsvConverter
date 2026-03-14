@@ -32,15 +32,16 @@ docker pull mavek87/parquet-csv:v0.1.1
 docker build -t mavek87/parquet-csv .
 ```
 
-### Usage
-
-Mount the directory containing your files with `-v $(pwd):/data` and pass paths inside the container.
-
 ### File ownership
 
 By default Docker runs as root (UID 0), so output files written to a host-mounted
 volume are root-owned. Pass `--user $(id -u):$(id -g)` to run as the current user
 and avoid this.
+
+### Usage
+
+Mount the directory containing your files with `-v $(pwd):/data` and pass paths inside the container.
+
 
 ```bash
 # Parquet → CSV
@@ -54,6 +55,7 @@ docker run --rm --user "$(id -u):$(id -g)" -v $(pwd):/data mavek87/parquet-csv \
 # Schema inspection
 docker run --rm --user "$(id -u):$(id -g)" -v $(pwd):/data mavek87/parquet-csv \
     -s /data/data.parquet
+    
 ```
 
 With additional options:
