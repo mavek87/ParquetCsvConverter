@@ -1,4 +1,4 @@
-# parquet-csv-converter
+# Parquet Csv Converter
 
 Python library for bidirectional **Parquet ↔ CSV** conversion with column renaming, date handling, and custom format strings.
 
