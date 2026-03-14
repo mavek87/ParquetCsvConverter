@@ -26,57 +26,21 @@ docker pull mavek87/parquet-csv
 docker pull mavek87/parquet-csv:v0.1.1
 ```
 
-| Tag | Meaning |
-|---|---|
-| `latest` | Most recent stable release |
-| `v0.1.1` | Human-readable error messages for missing input files |
-| `v0.1.0` | Initial release |
-
 ### Build locally (optional)
 
 ```bash
 docker build -t mavek87/parquet-csv .
 ```
 
-### Releasing a new version
+### Usage
 
-Use `release.sh` to bump the version, build, and push in one step:
-
-```bash
-./release.sh           # bump patch  (0.1.1 → 0.1.2, default)
-./release.sh patch     # bump patch  (0.1.1 → 0.1.2)
-./release.sh minor     # bump minor  (0.1.1 → 0.2.0)
-./release.sh major     # bump major  (0.1.1 → 1.0.0)
-./release.sh 2.3.0     # set exact version
-```
-
-The script will:
-1. Read the current version from `pyproject.toml`
-2. Ask for confirmation before making any changes
-3. Bump `version` in `pyproject.toml`
-4. Build the Docker image tagged as `latest` and `vX.Y.Z`
-5. Push both tags to Docker Hub
-
-After the script completes, verify that both tags appear on Docker Hub:
-https://hub.docker.com/r/mavek87/parquet-csv/tags
-
-**Semver rules:**
-
-| Change | Bump |
-|---|---|
-| Bug fix, UX improvement, no API change | patch (`0.1.1 → 0.1.2`) |
-| New feature, backwards compatible | minor (`0.1.1 → 0.2.0`) |
-| Breaking API change | major (`0.1.1 → 1.0.0`) |
+Mount the directory containing your files with `-v $(pwd):/data` and pass paths inside the container.
 
 ### File ownership
 
 By default Docker runs as root (UID 0), so output files written to a host-mounted
 volume are root-owned. Pass `--user $(id -u):$(id -g)` to run as the current user
 and avoid this.
-
-### Usage
-
-Mount the directory containing your files with `-v $(pwd):/data` and pass paths inside the container.
 
 ```bash
 # Parquet → CSV
@@ -542,3 +506,35 @@ uv run pytest tests/test_converter.py -v
 # Single test
 uv run pytest tests/test_converter.py::TestParquetToCsvLazy::test_date_iso -v
 ```
+
+--- 
+
+### Releasing a new version
+
+Use `release.sh` to bump the version, build, and push in one step:
+
+```bash
+./release.sh           # bump patch  (0.1.1 → 0.1.2, default)
+./release.sh patch     # bump patch  (0.1.1 → 0.1.2)
+./release.sh minor     # bump minor  (0.1.1 → 0.2.0)
+./release.sh major     # bump major  (0.1.1 → 1.0.0)
+./release.sh 2.3.0     # set exact version
+```
+
+The script will:
+1. Read the current version from `pyproject.toml`
+2. Ask for confirmation before making any changes
+3. Bump `version` in `pyproject.toml`
+4. Build the Docker image tagged as `latest` and `vX.Y.Z`
+5. Push both tags to Docker Hub
+
+After the script completes, verify that both tags appear on Docker Hub:
+https://hub.docker.com/r/mavek87/parquet-csv/tags
+
+**Semver rules:**
+
+| Change | Bump |
+|---|---|
+| Bug fix, UX improvement, no API change | patch (`0.1.1 → 0.1.2`) |
+| New feature, backwards compatible | minor (`0.1.1 → 0.2.0`) |
+| Breaking API change | major (`0.1.1 → 1.0.0`) |
