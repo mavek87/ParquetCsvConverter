@@ -12,21 +12,27 @@ Python library for bidirectional **Parquet ↔ CSV** conversion with column rena
 docker build -t parquet-csv .
 ```
 
+### File ownership
+
+By default Docker runs as root (UID 0), so output files written to a host-mounted
+volume are root-owned. Pass `--user $(id -u):$(id -g)` to run as the current user
+and avoid this.
+
 ### Usage
 
 Mount the directory containing your files with `-v $(pwd):/data` and pass paths inside the container.
 
 ```bash
 # Parquet → CSV
-docker run --rm -v $(pwd):/data parquet-csv \
+docker run --rm --user "$(id -u):$(id -g)" -v $(pwd):/data parquet-csv \
     -pc /data/data.parquet -o /data/output.csv
 
 # CSV → Parquet
-docker run --rm -v $(pwd):/data parquet-csv \
+docker run --rm --user "$(id -u):$(id -g)" -v $(pwd):/data parquet-csv \
     -cp /data/data.csv -o /data/output.parquet
 
 # Schema inspection
-docker run --rm -v $(pwd):/data parquet-csv \
+docker run --rm --user "$(id -u):$(id -g)" -v $(pwd):/data parquet-csv \
     -s /data/data.parquet
 ```
 
@@ -34,24 +40,24 @@ With additional options:
 
 ```bash
 # Rename + date format + column selection
-docker run --rm -v $(pwd):/data parquet-csv \
+docker run --rm --user "$(id -u):$(id -g)" -v $(pwd):/data parquet-csv \
     -pc /data/data.parquet -o /data/output.csv \
     --rename isin:etf_isin \
     --date-format date:iso \
     --select isin,date,close
 
 # Custom date format
-docker run --rm -v $(pwd):/data parquet-csv \
+docker run --rm --user "$(id -u):$(id -g)" -v $(pwd):/data parquet-csv \
     -pc /data/data.parquet -o /data/output.csv \
     --date-format date:%d/%m/%Y
 
 # JSON rules file (the file must be inside the mounted directory)
-docker run --rm -v $(pwd):/data parquet-csv \
+docker run --rm --user "$(id -u):$(id -g)" -v $(pwd):/data parquet-csv \
     -pc /data/data.parquet -o /data/output.csv \
     --rules /data/rules.json
 
 # Streaming mode for very large files
-docker run --rm -v $(pwd):/data parquet-csv \
+docker run --rm --user "$(id -u):$(id -g)" -v $(pwd):/data parquet-csv \
     -pc /data/data.parquet -o /data/output.csv \
     --mode streaming --chunk-size 50000
 ```

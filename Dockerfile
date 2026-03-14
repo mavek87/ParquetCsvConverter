@@ -42,6 +42,7 @@ COPY src/ ./src/
 # and all installed packages are available.
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONPATH="/app"
+ENV HOME=/tmp
 
 # Default entry point mirrors `uv run -m src`.
 # All CLI flags are passed through as CMD arguments.
