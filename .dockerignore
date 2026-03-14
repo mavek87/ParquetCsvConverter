@@ -1,0 +1,41 @@
+# Version control
+.git
+.gitignore
+
+# Python caches
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info
+.eggs
+dist
+build
+
+# Virtual environments (host-side; the container builds its own)
+.venv
+venv
+env
+
+# Dev / test
+tests/
+.pytest_cache
+.coverage
+htmlcov/
+
+# IDE / editor
+.idea
+.vscode
+*.iml
+*.swp
+*.swo
+
+# Data files (mounted at runtime via -v, not baked into the image)
+*.parquet
+*.csv
+
+# Docs / misc
+README.md
+CLAUDE.md
+rules_example.json

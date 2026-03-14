@@ -1,0 +1,17 @@
+{
+  "column_rules": [
+    {
+      "parquet_name": "isin",
+      "csv_name": "etf_isin"
+    },
+    {
+      "parquet_name": "date",
+      "csv_name": "date",
+      "date_format": "iso"
+    }
+  ],
+  "select_columns": ["isin", "date", "close", "adj_close", "dividends"],
+  "delimiter": ",",
+  "mode": "lazy",
+  "chunk_size": 100000
+}
