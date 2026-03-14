@@ -4,7 +4,7 @@
 # a self-contained virtual environment (.venv/).
 # Nothing from this stage leaks into the runtime image.
 # ─────────────────────────────────────────────
-FROM python:3.12-slim AS builder
+FROM python:3.13-slim AS builder
 
 # Install uv (fast resolver/installer, replaces pip for dep installation)
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
@@ -28,7 +28,7 @@ RUN uv sync --frozen --no-dev --no-install-project
 # Minimal image with Python, the pre-built venv,
 # and the application source. No uv, no build tools.
 # ─────────────────────────────────────────────
-FROM python:3.12-slim AS runtime
+FROM python:3.13-slim AS runtime
 
 WORKDIR /app
 

@@ -369,3 +369,31 @@ class TestMain:
         main()
         first_line = out.read_text().split("\n")[0]
         assert ";" in first_line
+
+    def test_parquet2csv_missing_input_exits(self, monkeypatch, tmp_path):
+        monkeypatch.setattr("sys.argv", ["prog", "-pc", str(tmp_path / "missing.parquet")])
+        with pytest.raises(SystemExit) as exc:
+            main()
+        assert "not found" in str(exc.value)
+
+    def test_csv2parquet_missing_input_exits(self, monkeypatch, tmp_path):
+        monkeypatch.setattr("sys.argv", ["prog", "-cp", str(tmp_path / "missing.csv")])
+        with pytest.raises(SystemExit) as exc:
+            main()
+        assert "not found" in str(exc.value)
+
+    def test_schema_missing_input_exits(self, monkeypatch, tmp_path):
+        monkeypatch.setattr("sys.argv", ["prog", "-s", str(tmp_path / "missing.parquet")])
+        with pytest.raises(SystemExit) as exc:
+            main()
+        assert "not found" in str(exc.value)
+
+    def test_rules_missing_file_exits(self, monkeypatch, tmp_path):
+        pq = tmp_path / "data.parquet"
+        pl.DataFrame({"x": [1]}).write_parquet(pq)
+        monkeypatch.setattr("sys.argv", [
+            "prog", "-pc", str(pq), "--rules", str(tmp_path / "missing.json"),
+        ])
+        with pytest.raises(SystemExit) as exc:
+            main()
+        assert "not found" in str(exc.value)

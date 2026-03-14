@@ -6,11 +6,67 @@ Python library for bidirectional **Parquet ↔ CSV** conversion with column rena
 
 ## Docker
 
-### Build
+### Pull from Docker Hub
+
+Image on Docker Hub: https://hub.docker.com/r/mavek87/parquet-csv
 
 ```bash
-docker build -t parquet-csv .
+docker pull mavek87/parquet-csv
 ```
+
+### Versioning
+
+Each release is tagged with both `latest` and a pinnable version tag (`vX.Y.Z`).
+
+```bash
+# Always pull the latest release
+docker pull mavek87/parquet-csv
+
+# Pull a specific version (pinnable, immutable)
+docker pull mavek87/parquet-csv:v0.1.1
+```
+
+| Tag | Meaning |
+|---|---|
+| `latest` | Most recent stable release |
+| `v0.1.1` | Human-readable error messages for missing input files |
+| `v0.1.0` | Initial release |
+
+### Build locally (optional)
+
+```bash
+docker build -t mavek87/parquet-csv .
+```
+
+### Releasing a new version
+
+Use `release.sh` to bump the version, build, and push in one step:
+
+```bash
+./release.sh           # bump patch  (0.1.1 → 0.1.2, default)
+./release.sh patch     # bump patch  (0.1.1 → 0.1.2)
+./release.sh minor     # bump minor  (0.1.1 → 0.2.0)
+./release.sh major     # bump major  (0.1.1 → 1.0.0)
+./release.sh 2.3.0     # set exact version
+```
+
+The script will:
+1. Read the current version from `pyproject.toml`
+2. Ask for confirmation before making any changes
+3. Bump `version` in `pyproject.toml`
+4. Build the Docker image tagged as `latest` and `vX.Y.Z`
+5. Push both tags to Docker Hub
+
+After the script completes, verify that both tags appear on Docker Hub:
+https://hub.docker.com/r/mavek87/parquet-csv/tags
+
+**Semver rules:**
+
+| Change | Bump |
+|---|---|
+| Bug fix, UX improvement, no API change | patch (`0.1.1 → 0.1.2`) |
+| New feature, backwards compatible | minor (`0.1.1 → 0.2.0`) |
+| Breaking API change | major (`0.1.1 → 1.0.0`) |
 
 ### File ownership
 
@@ -24,15 +80,15 @@ Mount the directory containing your files with `-v $(pwd):/data` and pass paths 
 
 ```bash
 # Parquet → CSV
-docker run --rm --user "$(id -u):$(id -g)" -v $(pwd):/data parquet-csv \
+docker run --rm --user "$(id -u):$(id -g)" -v $(pwd):/data mavek87/parquet-csv \
     -pc /data/data.parquet -o /data/output.csv
 
 # CSV → Parquet
-docker run --rm --user "$(id -u):$(id -g)" -v $(pwd):/data parquet-csv \
+docker run --rm --user "$(id -u):$(id -g)" -v $(pwd):/data mavek87/parquet-csv \
     -cp /data/data.csv -o /data/output.parquet
 
 # Schema inspection
-docker run --rm --user "$(id -u):$(id -g)" -v $(pwd):/data parquet-csv \
+docker run --rm --user "$(id -u):$(id -g)" -v $(pwd):/data mavek87/parquet-csv \
     -s /data/data.parquet
 ```
 
@@ -40,24 +96,24 @@ With additional options:
 
 ```bash
 # Rename + date format + column selection
-docker run --rm --user "$(id -u):$(id -g)" -v $(pwd):/data parquet-csv \
+docker run --rm --user "$(id -u):$(id -g)" -v $(pwd):/data mavek87/parquet-csv \
     -pc /data/data.parquet -o /data/output.csv \
     --rename isin:etf_isin \
     --date-format date:iso \
     --select isin,date,close
 
 # Custom date format
-docker run --rm --user "$(id -u):$(id -g)" -v $(pwd):/data parquet-csv \
+docker run --rm --user "$(id -u):$(id -g)" -v $(pwd):/data mavek87/parquet-csv \
     -pc /data/data.parquet -o /data/output.csv \
     --date-format date:%d/%m/%Y
 
 # JSON rules file (the file must be inside the mounted directory)
-docker run --rm --user "$(id -u):$(id -g)" -v $(pwd):/data parquet-csv \
+docker run --rm --user "$(id -u):$(id -g)" -v $(pwd):/data mavek87/parquet-csv \
     -pc /data/data.parquet -o /data/output.csv \
     --rules /data/rules.json
 
 # Streaming mode for very large files
-docker run --rm --user "$(id -u):$(id -g)" -v $(pwd):/data parquet-csv \
+docker run --rm --user "$(id -u):$(id -g)" -v $(pwd):/data mavek87/parquet-csv \
     -pc /data/data.parquet -o /data/output.csv \
     --mode streaming --chunk-size 50000
 ```
@@ -456,6 +512,17 @@ DateFormat.DATE     # day-only string              →  "2021-01-15"
 # or any strptime format string:
 "%d/%m/%Y"          # →  "15/01/2021"
 "%Y%m%d"            # →  "20210115"
+```
+
+---
+
+## Error messages
+
+If an input file does not exist, the CLI exits immediately with a human-readable message instead of a Python traceback:
+
+```
+Error: Input file not found: /data/data.parquet
+Error: Rules file not found: /data/rules.json
 ```
 
 ---

@@ -189,16 +189,27 @@ examples:
     return ap
 
 
+def _require_file(path: str, label: str = "Input file") -> None:
+    if not Path(path).is_file():
+        sys.exit(f"Error: {label} not found: {path}")
+
+
 def main() -> None:
     args = build_parser().parse_args()
 
+    if args.rules:
+        _require_file(args.rules, "Rules file")
+
     if args.schema:
+        _require_file(args.schema)
         inspect_schema(args.schema)
         return
 
     config = _config_from_json(args.rules, args) if args.rules else _config_from_flags(args)
 
     if args.parquet2csv:
+        _require_file(args.parquet2csv)
         parquet_to_csv(args.parquet2csv, args.output, config)
     elif args.csv2parquet:
+        _require_file(args.csv2parquet)
         csv_to_parquet(args.csv2parquet, args.output, config)
