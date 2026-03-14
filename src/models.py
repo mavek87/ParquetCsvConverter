@@ -59,27 +59,42 @@ class ConversionConfig:
         column_rules:   Per-column rename and date-format rules.
         select_columns: Parquet column names to include; None means all columns.
         delimiter:      CSV field delimiter (default: comma).
+        compression_level: Parquet compression level (1-22 for zstd/gzip/brotli).
+                          None uses the library default (zstd level 3).
         verbose:        Print progress info to stdout.
     """
 
     column_rules: list[ColumnRule] = field(default_factory=list)
     select_columns: Optional[list[str]] = None
     delimiter: str = ","
+    compression_level: Optional[int] = None
     verbose: bool = True
 
     # ------------------------------------------------------------------ helpers
 
     def parquet_to_csv_rename(self) -> dict[str, str]:
         """parquet_name → csv_name (only for columns that are actually renamed)."""
-        return {r.parquet_name: r.csv_name for r in self.column_rules if r.parquet_name != r.csv_name}
+        return {
+            r.parquet_name: r.csv_name
+            for r in self.column_rules
+            if r.parquet_name != r.csv_name
+        }
 
     def csv_to_parquet_rename(self) -> dict[str, str]:
         """csv_name → parquet_name (only for columns that are actually renamed)."""
-        return {r.csv_name: r.parquet_name for r in self.column_rules if r.parquet_name != r.csv_name}
+        return {
+            r.csv_name: r.parquet_name
+            for r in self.column_rules
+            if r.parquet_name != r.csv_name
+        }
 
     def date_rules_by_parquet_name(self) -> dict[str, Union[DateFormat, str]]:
         """parquet_name → DateFormat or custom format string (only for columns with an explicit date_format)."""
-        return {r.parquet_name: r.date_format for r in self.column_rules if r.date_format is not None}
+        return {
+            r.parquet_name: r.date_format
+            for r in self.column_rules
+            if r.date_format is not None
+        }
 
 
 @dataclass

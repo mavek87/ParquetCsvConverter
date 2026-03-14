@@ -15,6 +15,7 @@ from .models import ConversionConfig, ConversionResult, DateFormat
 # Internal helpers
 # ---------------------------------------------------------------------------
 
+
 def _size_mb(path: Path) -> float:
     return path.stat().st_size / (1024 * 1024)
 
@@ -24,11 +25,28 @@ def _log(config: ConversionConfig, msg: str, end: str = "\n") -> None:
         print(msg, end=end, flush=True)
 
 
+def _validate_compression_level(
+    level: Optional[int], config: ConversionConfig
+) -> Optional[int]:
+    """Validate compression_level is in range 1-22, else use default and warn."""
+    if level is None:
+        return None
+    if not (1 <= level <= 22):
+        _log(
+            config,
+            f"Warning: compression_level {level} is out of range (1-22), using default",
+        )
+        return None
+    return level
+
 # ---------------------------------------------------------------------------
 # Polars transform helpers (work on LazyFrame)
 # ---------------------------------------------------------------------------
 
-def _apply_parquet_to_csv_transforms(lf: pl.LazyFrame, config: ConversionConfig) -> pl.LazyFrame:
+
+def _apply_parquet_to_csv_transforms(
+    lf: pl.LazyFrame, config: ConversionConfig
+) -> pl.LazyFrame:
     """Column selection → date formatting → rename (parquet→csv direction)."""
     if config.select_columns:
         lf = lf.select(config.select_columns)
@@ -55,7 +73,9 @@ def _apply_parquet_to_csv_transforms(lf: pl.LazyFrame, config: ConversionConfig)
     return lf
 
 
-def _apply_csv_to_parquet_transforms(lf: pl.LazyFrame, config: ConversionConfig) -> pl.LazyFrame:
+def _apply_csv_to_parquet_transforms(
+    lf: pl.LazyFrame, config: ConversionConfig
+) -> pl.LazyFrame:
     """Rename (csv→parquet) → date parsing direction."""
     rename_map = config.csv_to_parquet_rename()
     if rename_map:
@@ -69,7 +89,10 @@ def _apply_csv_to_parquet_transforms(lf: pl.LazyFrame, config: ConversionConfig)
             col = pl.col(col_name)
             dtype = schema.get(col_name)
             already_temporal = dtype is not None and type(dtype).__name__ in (
-                "Datetime", "Date", "Time", "Duration"
+                "Datetime",
+                "Date",
+                "Time",
+                "Duration",
             )
 
             if fmt == DateFormat.INSTANT:
@@ -78,7 +101,9 @@ def _apply_csv_to_parquet_transforms(lf: pl.LazyFrame, config: ConversionConfig)
                 if already_temporal:
                     exprs.append(col.cast(pl.Datetime("us")))
                 else:
-                    exprs.append(col.str.to_datetime(format="%Y-%m-%dT%H:%M:%S%.f", strict=False))
+                    exprs.append(
+                        col.str.to_datetime(format="%Y-%m-%dT%H:%M:%S%.f", strict=False)
+                    )
             elif fmt == DateFormat.DATE:
                 if already_temporal:
                     exprs.append(col.cast(pl.Date))
@@ -160,7 +185,9 @@ def csv_to_parquet(
         ConversionResult with timing and size statistics.
     """
     input_path = Path(input_path)
-    output_path = Path(output_path) if output_path else input_path.with_suffix(".parquet")
+    output_path = (
+        Path(output_path) if output_path else input_path.with_suffix(".parquet")
+    )
     if config is None:
         config = ConversionConfig()
 
@@ -171,7 +198,9 @@ def csv_to_parquet(
 
     lf = pl.scan_csv(input_path, separator=config.delimiter)
     lf = _apply_csv_to_parquet_transforms(lf, config)
-    lf.sink_parquet(output_path)
+
+    compression_level = _validate_compression_level(config.compression_level, config)
+    lf.sink_parquet(output_path, compression_level=compression_level)
 
     result = ConversionResult(
         input_path=input_path,
@@ -188,6 +217,7 @@ def csv_to_parquet(
 # ---------------------------------------------------------------------------
 # Schema inspection
 # ---------------------------------------------------------------------------
+
 
 def inspect_schema(parquet_path: Path | str) -> None:
     """Print the schema and metadata of a Parquet file (reads only the footer).

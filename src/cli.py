@@ -17,6 +17,7 @@ _DATE_FORMAT_VALUES = [f.value for f in DateFormat]
 # Config builders
 # ---------------------------------------------------------------------------
 
+
 def _config_from_json(path: str, args: argparse.Namespace) -> ConversionConfig:
     with open(path) as f:
         data = json.load(f)
@@ -41,6 +42,7 @@ def _config_from_json(path: str, args: argparse.Namespace) -> ConversionConfig:
         column_rules=column_rules,
         select_columns=data.get("select_columns"),
         delimiter=data.get("delimiter", args.delimiter),
+        compression_level=data.get("compression_level"),
         verbose=True,
     )
 
@@ -73,12 +75,15 @@ def _config_from_flags(args: argparse.Namespace) -> ConversionConfig:
         for col in all_parquet_cols
     ]
 
-    select_columns = [c.strip() for c in args.select.split(",")] if args.select else None
+    select_columns = (
+        [c.strip() for c in args.select.split(",")] if args.select else None
+    )
 
     return ConversionConfig(
         column_rules=column_rules,
         select_columns=select_columns,
         delimiter=args.delimiter,
+        compression_level=args.compression_level,
         verbose=True,
     )
 
@@ -86,6 +91,7 @@ def _config_from_flags(args: argparse.Namespace) -> ConversionConfig:
 # ---------------------------------------------------------------------------
 # CLI entry point
 # ---------------------------------------------------------------------------
+
 
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(
@@ -114,28 +120,33 @@ examples:
 
     direction = ap.add_mutually_exclusive_group(required=True)
     direction.add_argument(
-        "-pc", "--parquet2csv",
+        "-pc",
+        "--parquet2csv",
         metavar="INPUT.parquet",
         help="Convert Parquet → CSV",
     )
     direction.add_argument(
-        "-cp", "--csv2parquet",
+        "-cp",
+        "--csv2parquet",
         metavar="INPUT.csv",
         help="Convert CSV → Parquet",
     )
     direction.add_argument(
-        "-s", "--schema",
+        "-s",
+        "--schema",
         metavar="INPUT.parquet",
         help="Print schema of a Parquet file (no conversion)",
     )
 
     ap.add_argument(
-        "-o", "--output",
+        "-o",
+        "--output",
         metavar="OUTPUT",
         help="Output file path (default: input stem with new extension)",
     )
     ap.add_argument(
-        "-d", "--delimiter",
+        "-d",
+        "--delimiter",
         default=",",
         metavar="CHAR",
         help="CSV field delimiter (default: ',')",
@@ -163,6 +174,12 @@ examples:
         help="Comma-separated list of parquet columns to include (default: all)",
     )
     ap.add_argument(
+        "--compression-level",
+        type=int,
+        metavar="LEVEL",
+        help="Parquet compression level for zstd/gzip/brotli (1-22, default: 3)",
+    )
+    ap.add_argument(
         "--rules",
         metavar="RULES.json",
         help="JSON file with full conversion rules (overrides --rename/--date-format/--select)",
@@ -187,7 +204,9 @@ def main() -> None:
         inspect_schema(args.schema)
         return
 
-    config = _config_from_json(args.rules, args) if args.rules else _config_from_flags(args)
+    config = (
+        _config_from_json(args.rules, args) if args.rules else _config_from_flags(args)
+    )
 
     if args.parquet2csv:
         _require_file(args.parquet2csv)

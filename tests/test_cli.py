@@ -24,6 +24,7 @@ def make_args(**kwargs) -> argparse.Namespace:
         date_format=None,
         select=None,
         delimiter=",",
+        compression_level=None,
     )
     defaults.update(kwargs)
     return argparse.Namespace(**defaults)
@@ -42,12 +43,15 @@ def write_rules(tmp_path: Path, data: dict) -> str:
 
 class TestConfigFromJson:
     def test_loads_column_rules(self, tmp_path):
-        path = write_rules(tmp_path, {
-            "column_rules": [
-                {"parquet_name": "isin", "csv_name": "etf_isin"},
-                {"parquet_name": "date", "csv_name": "date", "date_format": "iso"},
-            ]
-        })
+        path = write_rules(
+            tmp_path,
+            {
+                "column_rules": [
+                    {"parquet_name": "isin", "csv_name": "etf_isin"},
+                    {"parquet_name": "date", "csv_name": "date", "date_format": "iso"},
+                ]
+            },
+        )
         cfg = _config_from_json(path, make_args())
         assert len(cfg.column_rules) == 2
         r0 = cfg.column_rules[0]
@@ -57,20 +61,37 @@ class TestConfigFromJson:
         assert cfg.column_rules[1].date_format is DateFormat.ISO
 
     def test_loads_select_columns(self, tmp_path):
-        path = write_rules(tmp_path, {
-            "column_rules": [],
-            "select_columns": ["isin", "close"],
-        })
+        path = write_rules(
+            tmp_path,
+            {
+                "column_rules": [],
+                "select_columns": ["isin", "close"],
+            },
+        )
         cfg = _config_from_json(path, make_args())
         assert cfg.select_columns == ["isin", "close"]
 
     def test_loads_delimiter(self, tmp_path):
-        path = write_rules(tmp_path, {
-            "column_rules": [],
-            "delimiter": ";",
-        })
+        path = write_rules(
+            tmp_path,
+            {
+                "column_rules": [],
+                "delimiter": ";",
+            },
+        )
         cfg = _config_from_json(path, make_args())
         assert cfg.delimiter == ";"
+
+    def test_loads_compression_level(self, tmp_path):
+        path = write_rules(
+            tmp_path,
+            {
+                "column_rules": [],
+                "compression_level": 6,
+            },
+        )
+        cfg = _config_from_json(path, make_args())
+        assert cfg.compression_level == 6
 
     def test_missing_delimiter_falls_back_to_args(self, tmp_path):
         path = write_rules(tmp_path, {"column_rules": []})
@@ -78,24 +99,39 @@ class TestConfigFromJson:
         assert cfg.delimiter == ";"
 
     def test_no_date_format_field_gives_none(self, tmp_path):
-        path = write_rules(tmp_path, {
-            "column_rules": [{"parquet_name": "isin", "csv_name": "etf_isin"}]
-        })
+        path = write_rules(
+            tmp_path,
+            {"column_rules": [{"parquet_name": "isin", "csv_name": "etf_isin"}]},
+        )
         cfg = _config_from_json(path, make_args())
         assert cfg.column_rules[0].date_format is None
 
     def test_all_date_format_values(self, tmp_path):
         for fmt in ("instant", "iso", "date"):
-            path = write_rules(tmp_path, {
-                "column_rules": [{"parquet_name": "d", "csv_name": "d", "date_format": fmt}]
-            })
+            path = write_rules(
+                tmp_path,
+                {
+                    "column_rules": [
+                        {"parquet_name": "d", "csv_name": "d", "date_format": fmt}
+                    ]
+                },
+            )
             cfg = _config_from_json(path, make_args())
             assert cfg.column_rules[0].date_format == DateFormat(fmt)
 
     def test_custom_format_string(self, tmp_path):
-        path = write_rules(tmp_path, {
-            "column_rules": [{"parquet_name": "date", "csv_name": "date", "date_format": "%Y%m%d"}]
-        })
+        path = write_rules(
+            tmp_path,
+            {
+                "column_rules": [
+                    {
+                        "parquet_name": "date",
+                        "csv_name": "date",
+                        "date_format": "%Y%m%d",
+                    }
+                ]
+            },
+        )
         cfg = _config_from_json(path, make_args())
         assert cfg.column_rules[0].date_format == "%Y%m%d"
 
@@ -136,7 +172,9 @@ class TestConfigFromFlags:
             assert cfg.date_rules_by_parquet_name()["date"] == DateFormat(fmt)
 
     def test_rename_and_date_format_on_same_column(self):
-        cfg = _config_from_flags(make_args(rename=["date:ts"], date_format=["date:iso"]))
+        cfg = _config_from_flags(
+            make_args(rename=["date:ts"], date_format=["date:iso"])
+        )
         rules = {r.parquet_name: r for r in cfg.column_rules}
         assert rules["date"].csv_name == "ts"
         assert rules["date"].date_format == DateFormat.ISO
@@ -175,6 +213,14 @@ class TestConfigFromFlags:
         cfg = _config_from_flags(make_args(delimiter=";"))
         assert cfg.delimiter == ";"
 
+    def test_compression_level(self):
+        cfg = _config_from_flags(make_args(compression_level=6))
+        assert cfg.compression_level == 6
+
+    def test_compression_level_none_by_default(self):
+        cfg = _config_from_flags(make_args())
+        assert cfg.compression_level is None
+
 
 # ---------------------------------------------------------------------------
 # build_parser
@@ -186,7 +232,9 @@ class TestBuildParser:
         return build_parser().parse_args(args)
 
     def test_parquet2csv_long_flag(self):
-        assert self.parse(["--parquet2csv", "data.parquet"]).parquet2csv == "data.parquet"
+        assert (
+            self.parse(["--parquet2csv", "data.parquet"]).parquet2csv == "data.parquet"
+        )
 
     def test_parquet2csv_short_flag(self):
         assert self.parse(["-pc", "data.parquet"]).parquet2csv == "data.parquet"
@@ -211,12 +259,19 @@ class TestBuildParser:
         assert args.date_format is None
         assert args.select is None
         assert args.rules is None
+        assert args.compression_level is None
+
+    def test_compression_level(self):
+        args = self.parse(["-cp", "d.csv", "--compression-level", "6"])
+        assert args.compression_level == 6
 
     def test_output_short_flag(self):
         assert self.parse(["-pc", "d.parquet", "-o", "out.csv"]).output == "out.csv"
 
     def test_output_long_flag(self):
-        assert self.parse(["-pc", "d.parquet", "--output", "out.csv"]).output == "out.csv"
+        assert (
+            self.parse(["-pc", "d.parquet", "--output", "out.csv"]).output == "out.csv"
+        )
 
     def test_delimiter_short(self):
         assert self.parse(["-pc", "d.parquet", "-d", ";"]).delimiter == ";"
@@ -229,7 +284,16 @@ class TestBuildParser:
         assert args.rename == ["a:b", "c:d"]
 
     def test_date_format_repeatable(self):
-        args = self.parse(["-pc", "d.parquet", "--date-format", "date:iso", "--date-format", "ts:instant"])
+        args = self.parse(
+            [
+                "-pc",
+                "d.parquet",
+                "--date-format",
+                "date:iso",
+                "--date-format",
+                "ts:instant",
+            ]
+        )
         assert args.date_format == ["date:iso", "ts:instant"]
 
     def test_select(self):
@@ -283,17 +347,29 @@ class TestMain:
     def test_parquet2csv_with_rename_and_date_flags(self, monkeypatch, tmp_path):
         pq = tmp_path / "data.parquet"
         out = tmp_path / "out.csv"
-        pl.DataFrame({
-            "isin": ["IE00B4L5Y983"],
-            "date": pl.Series([datetime(2021, 1, 15)]).cast(pl.Datetime("us")),
-            "close": [16.73],
-        }).write_parquet(pq)
-        monkeypatch.setattr("sys.argv", [
-            "prog", "-pc", str(pq), "-o", str(out),
-            "--rename", "isin:etf_isin",
-            "--date-format", "date:iso",
-            "--select", "isin,date,close",
-        ])
+        pl.DataFrame(
+            {
+                "isin": ["IE00B4L5Y983"],
+                "date": pl.Series([datetime(2021, 1, 15)]).cast(pl.Datetime("us")),
+                "close": [16.73],
+            }
+        ).write_parquet(pq)
+        monkeypatch.setattr(
+            "sys.argv",
+            [
+                "prog",
+                "-pc",
+                str(pq),
+                "-o",
+                str(out),
+                "--rename",
+                "isin:etf_isin",
+                "--date-format",
+                "date:iso",
+                "--select",
+                "isin,date,close",
+            ],
+        )
         main()
         df = pl.read_csv(out)
         assert "etf_isin" in df.columns
@@ -303,21 +379,42 @@ class TestMain:
         pq = tmp_path / "data.parquet"
         out = tmp_path / "out.csv"
         rules = tmp_path / "rules.json"
-        pl.DataFrame({
-            "isin": ["A", "B"],
-            "date": pl.Series([datetime(2021, 1, 15), datetime(2021, 6, 1)]).cast(pl.Datetime("us")),
-            "close": [1.0, 2.0],
-        }).write_parquet(pq)
-        rules.write_text(json.dumps({
-            "column_rules": [
-                {"parquet_name": "isin", "csv_name": "etf_isin"},
-                {"parquet_name": "date", "csv_name": "date", "date_format": "iso"},
+        pl.DataFrame(
+            {
+                "isin": ["A", "B"],
+                "date": pl.Series([datetime(2021, 1, 15), datetime(2021, 6, 1)]).cast(
+                    pl.Datetime("us")
+                ),
+                "close": [1.0, 2.0],
+            }
+        ).write_parquet(pq)
+        rules.write_text(
+            json.dumps(
+                {
+                    "column_rules": [
+                        {"parquet_name": "isin", "csv_name": "etf_isin"},
+                        {
+                            "parquet_name": "date",
+                            "csv_name": "date",
+                            "date_format": "iso",
+                        },
+                    ],
+                    "select_columns": ["isin", "date", "close"],
+                }
+            )
+        )
+        monkeypatch.setattr(
+            "sys.argv",
+            [
+                "prog",
+                "-pc",
+                str(pq),
+                "-o",
+                str(out),
+                "--rules",
+                str(rules),
             ],
-            "select_columns": ["isin", "date", "close"],
-        }))
-        monkeypatch.setattr("sys.argv", [
-            "prog", "-pc", str(pq), "-o", str(out), "--rules", str(rules),
-        ])
+        )
         main()
         df = pl.read_csv(out)
         assert "etf_isin" in df.columns
@@ -328,15 +425,26 @@ class TestMain:
         pq = tmp_path / "data.parquet"
         out = tmp_path / "out.csv"
         pl.DataFrame({"a": [1], "b": [2]}).write_parquet(pq)
-        monkeypatch.setattr("sys.argv", [
-            "prog", "-pc", str(pq), "-o", str(out), "-d", ";",
-        ])
+        monkeypatch.setattr(
+            "sys.argv",
+            [
+                "prog",
+                "-pc",
+                str(pq),
+                "-o",
+                str(out),
+                "-d",
+                ";",
+            ],
+        )
         main()
         first_line = out.read_text().split("\n")[0]
         assert ";" in first_line
 
     def test_parquet2csv_missing_input_exits(self, monkeypatch, tmp_path):
-        monkeypatch.setattr("sys.argv", ["prog", "-pc", str(tmp_path / "missing.parquet")])
+        monkeypatch.setattr(
+            "sys.argv", ["prog", "-pc", str(tmp_path / "missing.parquet")]
+        )
         with pytest.raises(SystemExit) as exc:
             main()
         assert "not found" in str(exc.value)
@@ -348,7 +456,9 @@ class TestMain:
         assert "not found" in str(exc.value)
 
     def test_schema_missing_input_exits(self, monkeypatch, tmp_path):
-        monkeypatch.setattr("sys.argv", ["prog", "-s", str(tmp_path / "missing.parquet")])
+        monkeypatch.setattr(
+            "sys.argv", ["prog", "-s", str(tmp_path / "missing.parquet")]
+        )
         with pytest.raises(SystemExit) as exc:
             main()
         assert "not found" in str(exc.value)
@@ -356,9 +466,16 @@ class TestMain:
     def test_rules_missing_file_exits(self, monkeypatch, tmp_path):
         pq = tmp_path / "data.parquet"
         pl.DataFrame({"x": [1]}).write_parquet(pq)
-        monkeypatch.setattr("sys.argv", [
-            "prog", "-pc", str(pq), "--rules", str(tmp_path / "missing.json"),
-        ])
+        monkeypatch.setattr(
+            "sys.argv",
+            [
+                "prog",
+                "-pc",
+                str(pq),
+                "--rules",
+                str(tmp_path / "missing.json"),
+            ],
+        )
         with pytest.raises(SystemExit) as exc:
             main()
         assert "not found" in str(exc.value)

@@ -113,9 +113,7 @@ class TestApplyParquetToCsvTransforms:
         assert result.columns == ["etf_isin", "close"]
 
     def test_multiple_date_formats(self, sample_df):
-        extra = sample_df.with_columns(
-            pl.col("date").alias("date2")
-        )
+        extra = sample_df.with_columns(pl.col("date").alias("date2"))
         cfg = ConversionConfig(
             column_rules=[
                 ColumnRule("date", "date", DateFormat.ISO),
@@ -154,7 +152,9 @@ class TestApplyCsvToParquetTransforms:
         assert result["isin"].to_list() == ["A", "B"]
 
     def test_date_iso_produces_datetime(self):
-        df = pl.DataFrame({"date": ["2021-01-15T00:00:00.000000", "2021-06-01T00:00:00.000000"]})
+        df = pl.DataFrame(
+            {"date": ["2021-01-15T00:00:00.000000", "2021-06-01T00:00:00.000000"]}
+        )
         cfg = ConversionConfig(
             column_rules=[ColumnRule("date", "date", DateFormat.ISO)],
             verbose=False,
@@ -224,7 +224,9 @@ class TestParquetToCsv:
 
     def test_rename(self, sample_parquet, tmp_path):
         out = tmp_path / "out.csv"
-        parquet_to_csv(sample_parquet, out, quiet(column_rules=[ColumnRule("isin", "etf_isin")]))
+        parquet_to_csv(
+            sample_parquet, out, quiet(column_rules=[ColumnRule("isin", "etf_isin")])
+        )
         df = pl.read_csv(out)
         assert "etf_isin" in df.columns
         assert "isin" not in df.columns
@@ -237,26 +239,42 @@ class TestParquetToCsv:
 
     def test_date_instant(self, sample_parquet, tmp_path, sample_df):
         out = tmp_path / "out.csv"
-        parquet_to_csv(sample_parquet, out, quiet(column_rules=[ColumnRule("date", "date", DateFormat.INSTANT)]))
+        parquet_to_csv(
+            sample_parquet,
+            out,
+            quiet(column_rules=[ColumnRule("date", "date", DateFormat.INSTANT)]),
+        )
         df = pl.read_csv(out)
         assert df["date"].dtype == pl.Int64
         assert df["date"][0] == sample_df["date"].cast(pl.Int64)[0]
 
     def test_date_iso(self, sample_parquet, tmp_path):
         out = tmp_path / "out.csv"
-        parquet_to_csv(sample_parquet, out, quiet(column_rules=[ColumnRule("date", "date", DateFormat.ISO)]))
+        parquet_to_csv(
+            sample_parquet,
+            out,
+            quiet(column_rules=[ColumnRule("date", "date", DateFormat.ISO)]),
+        )
         df = pl.read_csv(out)
         assert df["date"][0] == "2021-01-15T00:00:00.000000"
 
     def test_date_date(self, sample_parquet, tmp_path):
         out = tmp_path / "out.csv"
-        parquet_to_csv(sample_parquet, out, quiet(column_rules=[ColumnRule("date", "date", DateFormat.DATE)]))
+        parquet_to_csv(
+            sample_parquet,
+            out,
+            quiet(column_rules=[ColumnRule("date", "date", DateFormat.DATE)]),
+        )
         df = pl.read_csv(out)
         assert df["date"][0] == "2021-01-15"
 
     def test_date_custom_format(self, sample_parquet, tmp_path):
         out = tmp_path / "out.csv"
-        parquet_to_csv(sample_parquet, out, quiet(column_rules=[ColumnRule("date", "date", "%d/%m/%Y")]))
+        parquet_to_csv(
+            sample_parquet,
+            out,
+            quiet(column_rules=[ColumnRule("date", "date", "%d/%m/%Y")]),
+        )
         df = pl.read_csv(out)
         assert df["date"][0] == "15/01/2021"
 
@@ -329,9 +347,13 @@ class TestCsvToParquet:
 
     def test_date_iso(self, tmp_path):
         csv = tmp_path / "in.csv"
-        pl.DataFrame({"date": ["2021-01-15T00:00:00.000000", "2021-06-01T00:00:00.000000"]}).write_csv(csv)
+        pl.DataFrame(
+            {"date": ["2021-01-15T00:00:00.000000", "2021-06-01T00:00:00.000000"]}
+        ).write_csv(csv)
         out = tmp_path / "out.parquet"
-        csv_to_parquet(csv, out, quiet(column_rules=[ColumnRule("date", "date", DateFormat.ISO)]))
+        csv_to_parquet(
+            csv, out, quiet(column_rules=[ColumnRule("date", "date", DateFormat.ISO)])
+        )
         df = pl.read_parquet(out)
         assert df["date"].dtype in _LAZY_DATETIME_DTYPES
 
@@ -339,7 +361,9 @@ class TestCsvToParquet:
         csv = tmp_path / "in.csv"
         pl.DataFrame({"date": ["2021-01-15", "2021-06-01"]}).write_csv(csv)
         out = tmp_path / "out.parquet"
-        csv_to_parquet(csv, out, quiet(column_rules=[ColumnRule("date", "date", DateFormat.DATE)]))
+        csv_to_parquet(
+            csv, out, quiet(column_rules=[ColumnRule("date", "date", DateFormat.DATE)])
+        )
         df = pl.read_parquet(out)
         assert df["date"].dtype == pl.Date
 
@@ -348,7 +372,11 @@ class TestCsvToParquet:
         csv = tmp_path / "in.csv"
         pl.DataFrame({"date": [epoch_us]}).write_csv(csv)
         out = tmp_path / "out.parquet"
-        csv_to_parquet(csv, out, quiet(column_rules=[ColumnRule("date", "date", DateFormat.INSTANT)]))
+        csv_to_parquet(
+            csv,
+            out,
+            quiet(column_rules=[ColumnRule("date", "date", DateFormat.INSTANT)]),
+        )
         df = pl.read_parquet(out)
         assert df["date"].dtype in _LAZY_DATETIME_DTYPES
 
@@ -356,17 +384,21 @@ class TestCsvToParquet:
         csv = tmp_path / "in.csv"
         pl.DataFrame({"date": ["15/01/2021", "01/06/2021"]}).write_csv(csv)
         out = tmp_path / "out.parquet"
-        csv_to_parquet(csv, out, quiet(column_rules=[ColumnRule("date", "date", "%d/%m/%Y")]))
+        csv_to_parquet(
+            csv, out, quiet(column_rules=[ColumnRule("date", "date", "%d/%m/%Y")])
+        )
         df = pl.read_parquet(out)
         assert df["date"].dtype in _LAZY_DATETIME_DTYPES
 
     def test_rename_and_date_combined(self, tmp_path):
         csv = tmp_path / "in.csv"
-        pl.DataFrame({
-            "etf_isin": ["IE00B4L5Y983"],
-            "date": ["2021-01-15T00:00:00.000000"],
-            "close": [16.73],
-        }).write_csv(csv)
+        pl.DataFrame(
+            {
+                "etf_isin": ["IE00B4L5Y983"],
+                "date": ["2021-01-15T00:00:00.000000"],
+                "close": [16.73],
+            }
+        ).write_csv(csv)
         out = tmp_path / "out.parquet"
         cfg = quiet(
             column_rules=[
@@ -387,6 +419,25 @@ class TestCsvToParquet:
         df = pl.read_parquet(out)
         assert df.columns == ["a", "b", "c"]
         assert len(df) == 2
+
+    def test_compression_level_valid(self, tmp_path, capsys):
+        csv = tmp_path / "in.csv"
+        csv.write_text("a,b\n1,2\n")
+        out = tmp_path / "out.parquet"
+        result = csv_to_parquet(csv, out, quiet(compression_level=6))
+        assert result.output_path.exists()
+        assert result.output_size_mb > 0
+
+    def test_compression_level_out_of_range_warns(self, tmp_path, capsys):
+        csv = tmp_path / "in.csv"
+        csv.write_text("a,b\n1,2\n")
+        out = tmp_path / "out.parquet"
+        cfg = ConversionConfig(compression_level=99, verbose=True)
+        result = csv_to_parquet(csv, out, cfg)
+        assert (
+            "Warning: compression_level 99 is out of range" in capsys.readouterr().out
+        )
+        assert result.output_path.exists()
 
     def test_result_attributes(self, sample_csv, tmp_path):
         out = tmp_path / "out.parquet"
@@ -453,9 +504,9 @@ class TestInspectSchema:
     def test_output_contains_types(self, sample_parquet, capsys):
         inspect_schema(sample_parquet)
         out = capsys.readouterr().out
-        assert "String" in out    # isin column
+        assert "String" in out  # isin column
         assert "Datetime" in out  # date column
-        assert "Float64" in out   # numeric columns
+        assert "Float64" in out  # numeric columns
 
     def test_accepts_string_path(self, sample_parquet, capsys):
         inspect_schema(str(sample_parquet))

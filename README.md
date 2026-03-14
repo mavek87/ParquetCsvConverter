@@ -35,13 +35,6 @@ docker pull mavek87/parquet-csv
 docker pull mavek87/parquet-csv:v0.1.2
 ```
 
-| Tag | Meaning |
-|---|---|
-| `latest` | Most recent stable release |
-| `v0.1.2` | Removed PyArrow dependency (Polars-only) |
-| `v0.1.1` | Human-readable error messages for missing input files |
-| `v0.1.0` | Initial release |
-
 ### Build locally (optional)
 
 ```bash
@@ -258,6 +251,10 @@ uv run -m src -cp data.csv -o output.parquet \
 uv run -m src -cp data.csv -o output.parquet \
     --delimiter ";"
 
+# With compression level (1-22, default: zstd level 3)
+uv run -m src -cp data.csv -o output.parquet \
+    --compression-level 6
+
 # With a JSON rules file
 uv run -m src -cp data.csv -o output.parquet \
     --rules rules.json
@@ -379,6 +376,7 @@ Collects all options in a reusable file. Takes precedence over `--rename`, `--da
 | `column_rules[].date_format` | string \| null | `null` | `"instant"`, `"iso"`, `"date"`, strptime format string, or omitted |
 | `select_columns` | array \| null | `null` | Parquet columns to include; `null` = all |
 | `delimiter` | string | `","` | CSV field separator |
+| `compression_level` | int \| null | `null` | Parquet compression level (1-22, default: zstd level 3) |
 
 ```bash
 uv run -m src -pc data.parquet -o output.csv --rules rules.json
@@ -413,6 +411,7 @@ config = ConversionConfig(
     ],
     select_columns=["isin", "date", "close", "adj_close", "dividends"],
     delimiter=",",
+    compression_level=6,  # zstd level 6 (default is 3)
     verbose=True,
 )
 
