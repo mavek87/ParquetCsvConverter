@@ -19,9 +19,9 @@ from src.models import ColumnRule, ConversionConfig, DateFormat
 _LAZY_DATETIME_DTYPES = (pl.Datetime("us"), pl.Datetime("us", None))
 
 
-def quiet(mode: str = "lazy", **kwargs) -> ConversionConfig:
+def quiet(**kwargs) -> ConversionConfig:
     """ConversionConfig with verbose=False for cleaner test output."""
-    return ConversionConfig(mode=mode, verbose=False, **kwargs)
+    return ConversionConfig(verbose=False, **kwargs)
 
 
 # ---------------------------------------------------------------------------
@@ -203,11 +203,11 @@ class TestApplyCsvToParquetTransforms:
 
 
 # ---------------------------------------------------------------------------
-# parquet_to_csv — lazy mode
+# parquet_to_csv
 # ---------------------------------------------------------------------------
 
 
-class TestParquetToCsvLazy:
+class TestParquetToCsv:
     def test_base_no_config(self, sample_parquet, tmp_path):
         out = tmp_path / "out.csv"
         result = parquet_to_csv(sample_parquet, out)
@@ -298,73 +298,15 @@ class TestParquetToCsvLazy:
 
 
 # ---------------------------------------------------------------------------
-# parquet_to_csv — streaming mode
+# csv_to_parquet
 # ---------------------------------------------------------------------------
 
 
-class TestParquetToCsvStreaming:
-    def test_base_produces_same_output_as_lazy(self, sample_parquet, tmp_path):
-        out_lazy = tmp_path / "lazy.csv"
-        out_stream = tmp_path / "stream.csv"
-        parquet_to_csv(sample_parquet, out_lazy, quiet())
-        parquet_to_csv(sample_parquet, out_stream, quiet(mode="streaming", chunk_size=2))
-
-        df_lazy = pl.read_csv(out_lazy)
-        df_stream = pl.read_csv(out_stream)
-        assert df_lazy.columns == df_stream.columns
-        assert len(df_lazy) == len(df_stream)
-
-    def test_row_count(self, sample_parquet, tmp_path):
-        out = tmp_path / "out.csv"
-        result = parquet_to_csv(sample_parquet, out, quiet(mode="streaming", chunk_size=2))
-        assert result.rows_converted == 3
-
-    def test_rename_date_select(self, sample_parquet, tmp_path):
-        out = tmp_path / "out.csv"
-        cfg = quiet(
-            mode="streaming",
-            chunk_size=2,
-            column_rules=[
-                ColumnRule("isin", "etf_isin"),
-                ColumnRule("date", "date", DateFormat.DATE),
-            ],
-            select_columns=["isin", "date", "close"],
-        )
-        parquet_to_csv(sample_parquet, out, cfg)
-        df = pl.read_csv(out)
-        assert df.columns == ["etf_isin", "date", "close"]
-        assert df["date"][0] == "2021-01-15"
-
-    def test_date_custom_format(self, sample_parquet, tmp_path):
-        out = tmp_path / "out.csv"
-        parquet_to_csv(sample_parquet, out, quiet(mode="streaming", chunk_size=2, column_rules=[ColumnRule("date", "date", "%d/%m/%Y")]))
-        df = pl.read_csv(out)
-        assert df["date"][0] == "15/01/2021"
-
-    def test_custom_delimiter(self, sample_parquet, tmp_path):
-        out = tmp_path / "out.csv"
-        parquet_to_csv(sample_parquet, out, quiet(mode="streaming", delimiter=";"))
-        first_line = out.read_text().split("\n")[0]
-        assert ";" in first_line
-
-    def test_chunk_smaller_than_row_count(self, sample_parquet, tmp_path):
-        """chunk_size=1 forces a separate chunk per row — all rows still written."""
-        out = tmp_path / "out.csv"
-        result = parquet_to_csv(sample_parquet, out, quiet(mode="streaming", chunk_size=1))
-        assert result.rows_converted == 3
-        assert len(pl.read_csv(out)) == 3
-
-
-# ---------------------------------------------------------------------------
-# csv_to_parquet — lazy mode
-# ---------------------------------------------------------------------------
-
-
-class TestCsvToParquetLazy:
+class TestCsvToParquet:
     def test_base_no_config(self, sample_csv, tmp_path):
         out = tmp_path / "out.parquet"
         result = csv_to_parquet(sample_csv, out)
-        assert result.rows_converted is None  # not cheaply available in lazy mode
+        assert result.rows_converted is None  # not cheaply available for CSV input
         df = pl.read_parquet(out)
         assert len(df) == 3
         assert set(df.columns) == {"isin", "date", "close", "adj_close", "dividends"}
@@ -462,79 +404,20 @@ class TestCsvToParquetLazy:
 
 
 # ---------------------------------------------------------------------------
-# csv_to_parquet — streaming mode
+# Round-trip
 # ---------------------------------------------------------------------------
 
 
-class TestCsvToParquetStreaming:
-    def test_base_produces_same_output_as_lazy(self, sample_csv, tmp_path):
-        out_lazy = tmp_path / "lazy.parquet"
-        out_stream = tmp_path / "stream.parquet"
-        csv_to_parquet(sample_csv, out_lazy, quiet())
-        csv_to_parquet(sample_csv, out_stream, quiet(mode="streaming", chunk_size=2))
-
-        df_lazy = pl.read_parquet(out_lazy)
-        df_stream = pl.read_parquet(out_stream)
-        assert df_lazy.columns == df_stream.columns
-        assert len(df_lazy) == len(df_stream)
-        assert df_lazy["isin"].to_list() == df_stream["isin"].to_list()
-
-    def test_row_count(self, sample_csv, tmp_path):
-        out = tmp_path / "out.parquet"
-        result = csv_to_parquet(sample_csv, out, quiet(mode="streaming", chunk_size=2))
-        assert result.rows_converted == 3
-
-    def test_rename_and_date(self, tmp_path):
-        csv = tmp_path / "in.csv"
-        pl.DataFrame({
-            "etf_isin": ["IE00B4L5Y983", "LU0290355717"],
-            "date": ["2021-01-15T00:00:00.000000", "2021-06-01T00:00:00.000000"],
-        }).write_csv(csv)
-        out = tmp_path / "out.parquet"
-        cfg = quiet(
-            mode="streaming",
-            chunk_size=1,
-            column_rules=[
-                ColumnRule("isin", "etf_isin"),
-                ColumnRule("date", "date", DateFormat.ISO),
-            ],
-        )
-        result = csv_to_parquet(csv, out, cfg)
-        assert result.rows_converted == 2
-        df = pl.read_parquet(out)
-        assert "isin" in df.columns
-        assert df["date"].dtype in _LAZY_DATETIME_DTYPES
-
-    def test_chunk_smaller_than_row_count(self, sample_csv, tmp_path):
-        out = tmp_path / "out.parquet"
-        result = csv_to_parquet(sample_csv, out, quiet(mode="streaming", chunk_size=1))
-        assert result.rows_converted == 3
-        assert len(pl.read_parquet(out)) == 3
-
-    def test_date_custom_format(self, tmp_path):
-        csv = tmp_path / "in.csv"
-        pl.DataFrame({"date": ["15/01/2021", "01/06/2021"]}).write_csv(csv)
-        out = tmp_path / "out.parquet"
-        csv_to_parquet(csv, out, quiet(mode="streaming", chunk_size=1, column_rules=[ColumnRule("date", "date", "%d/%m/%Y")]))
-        df = pl.read_parquet(out)
-        assert df["date"].dtype in _LAZY_DATETIME_DTYPES
-
-
-# ---------------------------------------------------------------------------
-# Round-trips
-# ---------------------------------------------------------------------------
-
-
-class TestRoundTrips:
+class TestRoundTrip:
     _RULES = [
         ColumnRule("isin", "etf_isin"),
         ColumnRule("date", "date", DateFormat.ISO),
     ]
 
-    def _cfg(self, mode="lazy", chunk_size=100_000):
-        return quiet(mode=mode, chunk_size=chunk_size, column_rules=self._RULES)
+    def _cfg(self):
+        return quiet(column_rules=self._RULES)
 
-    def test_lazy_round_trip_preserves_values(self, sample_parquet, tmp_path):
+    def test_round_trip_preserves_values(self, sample_parquet, tmp_path):
         csv = tmp_path / "mid.csv"
         out = tmp_path / "out.parquet"
         parquet_to_csv(sample_parquet, csv, self._cfg())
@@ -545,29 +428,6 @@ class TestRoundTrips:
         assert result.columns == original.columns
         assert result["isin"].to_list() == original["isin"].to_list()
         assert result["close"].to_list() == original["close"].to_list()
-
-    def test_streaming_round_trip_preserves_values(self, sample_parquet, tmp_path):
-        csv = tmp_path / "mid.csv"
-        out = tmp_path / "out.parquet"
-        parquet_to_csv(sample_parquet, csv, self._cfg(mode="streaming", chunk_size=2))
-        csv_to_parquet(csv, out, self._cfg(mode="streaming", chunk_size=2))
-
-        original = pl.read_parquet(sample_parquet)
-        result = pl.read_parquet(out)
-        assert result.columns == original.columns
-        assert result["isin"].to_list() == original["isin"].to_list()
-
-    def test_lazy_streaming_produce_same_csv(self, sample_parquet, tmp_path):
-        out_lazy = tmp_path / "lazy.csv"
-        out_stream = tmp_path / "stream.csv"
-        cfg_lazy = self._cfg()
-        cfg_stream = self._cfg(mode="streaming", chunk_size=2)
-        parquet_to_csv(sample_parquet, out_lazy, cfg_lazy)
-        parquet_to_csv(sample_parquet, out_stream, cfg_stream)
-
-        df_lazy = pl.read_csv(out_lazy)
-        df_stream = pl.read_csv(out_stream)
-        assert df_lazy.equals(df_stream)
 
 
 # ---------------------------------------------------------------------------
@@ -593,9 +453,9 @@ class TestInspectSchema:
     def test_output_contains_types(self, sample_parquet, capsys):
         inspect_schema(sample_parquet)
         out = capsys.readouterr().out
-        assert "string" in out or "large_string" in out  # isin column
-        assert "timestamp" in out  # date column
-        assert "double" in out  # numeric columns
+        assert "String" in out    # isin column
+        assert "Datetime" in out  # date column
+        assert "Float64" in out   # numeric columns
 
     def test_accepts_string_path(self, sample_parquet, capsys):
         inspect_schema(str(sample_parquet))

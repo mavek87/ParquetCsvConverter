@@ -73,8 +73,6 @@ class TestConversionConfig:
     def test_defaults(self):
         cfg = ConversionConfig()
         assert cfg.delimiter == ","
-        assert cfg.chunk_size == 100_000
-        assert cfg.mode == "lazy"
         assert cfg.verbose is True
         assert cfg.column_rules == []
         assert cfg.select_columns is None

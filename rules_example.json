@@ -11,7 +11,5 @@
     }
   ],
   "select_columns": ["isin", "date", "close", "adj_close", "dividends"],
-  "delimiter": ",",
-  "mode": "lazy",
-  "chunk_size": 100000
+  "delimiter": ","
 }

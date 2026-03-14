@@ -56,20 +56,15 @@ class ConversionConfig:
     """Full configuration for a parquet ↔ csv conversion job.
 
     Args:
-        column_rules:    Per-column rename and date-format rules.
-        select_columns:  Parquet column names to include; None means all columns.
-        delimiter:       CSV field delimiter (default: comma).
-        chunk_size:      Row count per chunk in streaming mode (default: 100 000).
-        mode:            'lazy' uses Polars sink (fast, recommended);
-                         'streaming' uses explicit batching (low RAM, for >10 GB files).
-        verbose:         Print progress info to stdout.
+        column_rules:   Per-column rename and date-format rules.
+        select_columns: Parquet column names to include; None means all columns.
+        delimiter:      CSV field delimiter (default: comma).
+        verbose:        Print progress info to stdout.
     """
 
     column_rules: list[ColumnRule] = field(default_factory=list)
     select_columns: Optional[list[str]] = None
     delimiter: str = ","
-    chunk_size: int = 100_000
-    mode: str = "lazy"
     verbose: bool = True
 
     # ------------------------------------------------------------------ helpers

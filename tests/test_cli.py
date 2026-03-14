@@ -24,8 +24,6 @@ def make_args(**kwargs) -> argparse.Namespace:
         date_format=None,
         select=None,
         delimiter=",",
-        chunk_size=100_000,
-        mode="lazy",
     )
     defaults.update(kwargs)
     return argparse.Namespace(**defaults)
@@ -66,24 +64,18 @@ class TestConfigFromJson:
         cfg = _config_from_json(path, make_args())
         assert cfg.select_columns == ["isin", "close"]
 
-    def test_loads_delimiter_mode_chunk_size(self, tmp_path):
+    def test_loads_delimiter(self, tmp_path):
         path = write_rules(tmp_path, {
             "column_rules": [],
             "delimiter": ";",
-            "mode": "streaming",
-            "chunk_size": 5_000,
         })
         cfg = _config_from_json(path, make_args())
         assert cfg.delimiter == ";"
-        assert cfg.mode == "streaming"
-        assert cfg.chunk_size == 5_000
 
-    def test_missing_fields_fall_back_to_args_defaults(self, tmp_path):
+    def test_missing_delimiter_falls_back_to_args(self, tmp_path):
         path = write_rules(tmp_path, {"column_rules": []})
-        cfg = _config_from_json(path, make_args(delimiter=";", mode="streaming", chunk_size=999))
+        cfg = _config_from_json(path, make_args(delimiter=";"))
         assert cfg.delimiter == ";"
-        assert cfg.mode == "streaming"
-        assert cfg.chunk_size == 999
 
     def test_no_date_format_field_gives_none(self, tmp_path):
         path = write_rules(tmp_path, {
@@ -162,8 +154,6 @@ class TestConfigFromFlags:
         assert cfg.column_rules == []
         assert cfg.select_columns is None
         assert cfg.delimiter == ","
-        assert cfg.mode == "lazy"
-        assert cfg.chunk_size == 100_000
 
     def test_invalid_rename_no_colon(self):
         with pytest.raises(SystemExit):
@@ -181,11 +171,9 @@ class TestConfigFromFlags:
         with pytest.raises(SystemExit):
             _config_from_flags(make_args(date_format=["dateiso"]))
 
-    def test_custom_delimiter_and_mode(self):
-        cfg = _config_from_flags(make_args(delimiter=";", mode="streaming", chunk_size=500))
+    def test_custom_delimiter(self):
+        cfg = _config_from_flags(make_args(delimiter=";"))
         assert cfg.delimiter == ";"
-        assert cfg.mode == "streaming"
-        assert cfg.chunk_size == 500
 
 
 # ---------------------------------------------------------------------------
@@ -218,8 +206,6 @@ class TestBuildParser:
     def test_defaults(self):
         args = self.parse(["-pc", "data.parquet"])
         assert args.delimiter == ","
-        assert args.mode == "lazy"
-        assert args.chunk_size == 100_000
         assert args.output is None
         assert args.rename is None
         assert args.date_format is None
@@ -231,12 +217,6 @@ class TestBuildParser:
 
     def test_output_long_flag(self):
         assert self.parse(["-pc", "d.parquet", "--output", "out.csv"]).output == "out.csv"
-
-    def test_mode_streaming(self):
-        assert self.parse(["-pc", "d.parquet", "--mode", "streaming"]).mode == "streaming"
-
-    def test_chunk_size(self):
-        assert self.parse(["-pc", "d.parquet", "--chunk-size", "50000"]).chunk_size == 50000
 
     def test_delimiter_short(self):
         assert self.parse(["-pc", "d.parquet", "-d", ";"]).delimiter == ";"
@@ -265,10 +245,6 @@ class TestBuildParser:
     def test_direction_flag_required(self):
         with pytest.raises(SystemExit):
             self.parse(["--delimiter", ";"])
-
-    def test_invalid_mode(self):
-        with pytest.raises(SystemExit):
-            self.parse(["-pc", "d.parquet", "--mode", "invalid"])
 
 
 # ---------------------------------------------------------------------------
@@ -347,17 +323,6 @@ class TestMain:
         assert "etf_isin" in df.columns
         assert df["date"][0] == "2021-01-15T00:00:00.000000"
         assert "isin" not in df.columns
-
-    def test_csv2parquet_streaming_mode(self, monkeypatch, tmp_path):
-        csv = tmp_path / "data.csv"
-        out = tmp_path / "out.parquet"
-        csv.write_text("a,b\n1,2\n3,4\n5,6\n")
-        monkeypatch.setattr("sys.argv", [
-            "prog", "-cp", str(csv), "-o", str(out),
-            "--mode", "streaming", "--chunk-size", "2",
-        ])
-        main()
-        assert len(pl.read_parquet(out)) == 3
 
     def test_parquet2csv_semicolon_delimiter(self, monkeypatch, tmp_path):
         pq = tmp_path / "data.parquet"

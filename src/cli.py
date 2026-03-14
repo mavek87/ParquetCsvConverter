@@ -41,8 +41,6 @@ def _config_from_json(path: str, args: argparse.Namespace) -> ConversionConfig:
         column_rules=column_rules,
         select_columns=data.get("select_columns"),
         delimiter=data.get("delimiter", args.delimiter),
-        chunk_size=data.get("chunk_size", args.chunk_size),
-        mode=data.get("mode", args.mode),
         verbose=True,
     )
 
@@ -81,8 +79,6 @@ def _config_from_flags(args: argparse.Namespace) -> ConversionConfig:
         column_rules=column_rules,
         select_columns=select_columns,
         delimiter=args.delimiter,
-        chunk_size=args.chunk_size,
-        mode=args.mode,
         verbose=True,
     )
 
@@ -98,16 +94,15 @@ def build_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 examples:
-  # Parquet → CSV (lazy mode, default)
+  # Parquet → CSV
   parquet-csv-converter -pc data.parquet
 
   # Parquet → CSV with column rename and date as ISO string
   parquet-csv-converter -pc data.parquet out.csv \\
       --rename isin:etf_isin --date-format date:iso
 
-  # CSV → Parquet with streaming mode and semicolon delimiter
-  parquet-csv-converter -cp data.csv out.parquet \\
-      --mode streaming --delimiter ";"
+  # CSV → Parquet with semicolon delimiter
+  parquet-csv-converter -cp data.csv out.parquet --delimiter ";"
 
   # Print Parquet schema
   parquet-csv-converter -s data.parquet
@@ -144,19 +139,6 @@ examples:
         default=",",
         metavar="CHAR",
         help="CSV field delimiter (default: ',')",
-    )
-    ap.add_argument(
-        "--mode",
-        choices=["lazy", "streaming"],
-        default="lazy",
-        help="'lazy' = Polars sink, fast (default); 'streaming' = explicit batching, low RAM",
-    )
-    ap.add_argument(
-        "--chunk-size",
-        type=int,
-        default=100_000,
-        metavar="N",
-        help="Rows per chunk in streaming mode (default: 100000)",
     )
     ap.add_argument(
         "--rename",

@@ -1,6 +1,15 @@
-# Parquet Csv Converter
+# Parquet CSV Converter
 
-Python library for bidirectional **Parquet ↔ CSV** conversion with column renaming, date handling, and custom format strings.
+A **Docker CLI tool** for converting Parquet files to CSV and back, directly from the command line.
+Mount a directory, pass file paths, and get the output — no Python environment required.
+
+```bash
+docker run --rm --user "$(id -u):$(id -g)" -v $(pwd):/data mavek87/parquet-csv \
+    -pc /data/data.parquet -o /data/output.csv
+```
+
+Supports column renaming, date format control, column selection, and custom delimiters.
+Also usable as a Python library.
 
 ---
 
@@ -23,8 +32,15 @@ Each release is tagged with both `latest` and a pinnable version tag (`vX.Y.Z`).
 docker pull mavek87/parquet-csv
 
 # Pull a specific version (pinnable, immutable)
-docker pull mavek87/parquet-csv:v0.1.1
+docker pull mavek87/parquet-csv:v0.1.2
 ```
+
+| Tag | Meaning |
+|---|---|
+| `latest` | Most recent stable release |
+| `v0.1.2` | Removed PyArrow dependency (Polars-only) |
+| `v0.1.1` | Human-readable error messages for missing input files |
+| `v0.1.0` | Initial release |
 
 ### Build locally (optional)
 
@@ -42,7 +58,6 @@ and avoid this.
 
 Mount the directory containing your files with `-v $(pwd):/data` and pass paths inside the container.
 
-
 ```bash
 # Parquet → CSV
 docker run --rm --user "$(id -u):$(id -g)" -v $(pwd):/data mavek87/parquet-csv \
@@ -55,7 +70,6 @@ docker run --rm --user "$(id -u):$(id -g)" -v $(pwd):/data mavek87/parquet-csv \
 # Schema inspection
 docker run --rm --user "$(id -u):$(id -g)" -v $(pwd):/data mavek87/parquet-csv \
     -s /data/data.parquet
-    
 ```
 
 With additional options:
@@ -77,12 +91,37 @@ docker run --rm --user "$(id -u):$(id -g)" -v $(pwd):/data mavek87/parquet-csv \
 docker run --rm --user "$(id -u):$(id -g)" -v $(pwd):/data mavek87/parquet-csv \
     -pc /data/data.parquet -o /data/output.csv \
     --rules /data/rules.json
-
-# Streaming mode for very large files
-docker run --rm --user "$(id -u):$(id -g)" -v $(pwd):/data mavek87/parquet-csv \
-    -pc /data/data.parquet -o /data/output.csv \
-    --mode streaming --chunk-size 50000
 ```
+
+### Releasing a new version
+
+Use `release.sh` to bump the version, build, and push in one step:
+
+```bash
+./release.sh           # bump patch  (0.1.2 → 0.1.3, default)
+./release.sh patch     # bump patch
+./release.sh minor     # bump minor  (0.1.2 → 0.2.0)
+./release.sh major     # bump major  (0.1.2 → 1.0.0)
+./release.sh 2.3.0     # set exact version
+```
+
+The script will:
+1. Read the current version from `pyproject.toml`
+2. Ask for confirmation before making any changes
+3. Bump `version` in `pyproject.toml`
+4. Build the Docker image tagged as `latest` and `vX.Y.Z`
+5. Push both tags to Docker Hub
+
+After the script completes, verify that both tags appear on Docker Hub:
+https://hub.docker.com/r/mavek87/parquet-csv/tags
+
+**Semver rules:**
+
+| Change | Bump |
+|---|---|
+| Bug fix, UX improvement, no API change | patch (`0.1.2 → 0.1.3`) |
+| New feature, backwards compatible | minor (`0.1.2 → 0.2.0`) |
+| Breaking API change | major (`0.1.2 → 1.0.0`) |
 
 ---
 
@@ -172,10 +211,6 @@ uv run -m src -pc data.parquet -o output.csv \
 uv run -m src -pc data.parquet -o output.csv \
     --delimiter ";"
 
-# Streaming mode (low RAM, recommended for files >10 GB)
-uv run -m src -pc data.parquet -o output.csv \
-    --mode streaming --chunk-size 50000
-
 # Rules from a JSON file (see dedicated section below)
 uv run -m src -pc data.parquet -o output.csv \
     --rules rules.json
@@ -219,9 +254,9 @@ uv run -m src -cp data.csv -o output.parquet \
     --rename isin:etf_isin \
     --date-format date:iso
 
-# Semicolon delimiter + streaming
+# Semicolon delimiter
 uv run -m src -cp data.csv -o output.parquet \
-    --delimiter ";" --mode streaming --chunk-size 100000
+    --delimiter ";"
 
 # With a JSON rules file
 uv run -m src -cp data.csv -o output.parquet \
@@ -241,16 +276,15 @@ Example output:
 File   : data.parquet
 Size   : 75.1 MB
 Rows   : 10,549,175
-Groups : 11
 Columns: 5
 
 #     Column                           Type
 ------------------------------------------------------------
-0     close                            double
-1     date                             timestamp[us]
-2     adj_close                        double
-3     isin                             string
-4     dividends                        double
+0     close                            Float64
+1     date                             Datetime(time_unit='us', time_zone=None)
+2     adj_close                        Float64
+3     isin                             String
+4     dividends                        Float64
 ```
 
 ---
@@ -310,25 +344,6 @@ uv run -m src -cp data.csv -o data_restored.parquet \
 
 ---
 
-## Lazy vs streaming mode
-
-| | `lazy` (default) | `streaming` |
-|---|---|---|
-| **Engine parquet→csv** | Polars `scan_parquet` + `sink_csv` | PyArrow `iter_batches` |
-| **Engine csv→parquet** | Polars `scan_csv` + `sink_parquet` | PyArrow `open_csv` + `ParquetWriter` |
-| **When to use** | Files up to a few GB | Very large files (>10 GB) |
-| **`--chunk-size`** | Ignored | Parquet→CSV: exact row count per batch; CSV→Parquet: approximate (bytes × 512) |
-| **Row count in result** | Parquet→CSV: from metadata; CSV→Parquet: `None` | Always available |
-| **Progress output** | No | Yes, one line updated per chunk |
-
-```bash
-# Streaming with 50,000-row chunks
-uv run -m src -pc data.parquet -o output.csv \
-    --mode streaming --chunk-size 50000
-```
-
----
-
 ## JSON rules file (`--rules`)
 
 Collects all options in a reusable file. Takes precedence over `--rename`, `--date-format`, and `--select`.
@@ -352,9 +367,7 @@ Collects all options in a reusable file. Takes precedence over `--rename`, `--da
     }
   ],
   "select_columns": ["isin", "date", "close", "adj_close", "dividends"],
-  "delimiter": ",",
-  "mode": "lazy",
-  "chunk_size": 100000
+  "delimiter": ","
 }
 ```
 
@@ -366,10 +379,6 @@ Collects all options in a reusable file. Takes precedence over `--rename`, `--da
 | `column_rules[].date_format` | string \| null | `null` | `"instant"`, `"iso"`, `"date"`, strptime format string, or omitted |
 | `select_columns` | array \| null | `null` | Parquet columns to include; `null` = all |
 | `delimiter` | string | `","` | CSV field separator |
-| `mode` | string | `"lazy"` | `"lazy"` or `"streaming"` |
-| `chunk_size` | integer | `100000` | Batch size in streaming mode |
-
-Fields absent from the JSON fall back to the CLI flag values (e.g. `--delimiter`, `--mode`).
 
 ```bash
 uv run -m src -pc data.parquet -o output.csv --rules rules.json
@@ -404,7 +413,6 @@ config = ConversionConfig(
     ],
     select_columns=["isin", "date", "close", "adj_close", "dividends"],
     delimiter=",",
-    mode="lazy",
     verbose=True,
 )
 
@@ -429,27 +437,11 @@ parquet_to_csv("data.parquet", "output.csv", config)
 csv_to_parquet("output.csv", "restored.parquet", config)
 ```
 
-### Streaming mode
-
-```python
-config = ConversionConfig(
-    column_rules=[
-        ColumnRule(parquet_name="isin", csv_name="etf_isin"),
-        ColumnRule(parquet_name="date", csv_name="date", date_format=DateFormat.ISO),
-    ],
-    mode="streaming",
-    chunk_size=50_000,
-    verbose=True,
-)
-
-result = parquet_to_csv("large_file.parquet", "output.csv", config)
-```
-
 ### Schema inspection
 
 ```python
 inspect_schema("data.parquet")
-# Prints schema, row count, row groups, and column types.
+# Prints schema, row count, and column types.
 # Reads only the file footer: fast even on files tens of GB in size.
 ```
 
@@ -462,7 +454,7 @@ result = parquet_to_csv("data.parquet", "output.csv", config)
 
 result.input_path       # Path("data.parquet")
 result.output_path      # Path("output.csv")
-result.rows_converted   # 10_549_175  (None in lazy csv→parquet mode)
+result.rows_converted   # 10_549_175  (None for csv→parquet)
 result.elapsed_seconds  # 0.82
 result.input_size_mb    # 75.1
 result.output_size_mb   # 608.6
@@ -506,37 +498,5 @@ uv run pytest tests/ -v
 uv run pytest tests/test_converter.py -v
 
 # Single test
-uv run pytest tests/test_converter.py::TestParquetToCsvLazy::test_date_iso -v
+uv run pytest tests/test_converter.py::TestParquetToCsv::test_date_iso -v
 ```
-
---- 
-
-### Releasing a new version
-
-Use `release.sh` to bump the version, build, and push in one step:
-
-```bash
-./release.sh           # bump patch  (0.1.1 → 0.1.2, default)
-./release.sh patch     # bump patch  (0.1.1 → 0.1.2)
-./release.sh minor     # bump minor  (0.1.1 → 0.2.0)
-./release.sh major     # bump major  (0.1.1 → 1.0.0)
-./release.sh 2.3.0     # set exact version
-```
-
-The script will:
-1. Read the current version from `pyproject.toml`
-2. Ask for confirmation before making any changes
-3. Bump `version` in `pyproject.toml`
-4. Build the Docker image tagged as `latest` and `vX.Y.Z`
-5. Push both tags to Docker Hub
-
-After the script completes, verify that both tags appear on Docker Hub:
-https://hub.docker.com/r/mavek87/parquet-csv/tags
-
-**Semver rules:**
-
-| Change | Bump |
-|---|---|
-| Bug fix, UX improvement, no API change | patch (`0.1.1 → 0.1.2`) |
-| New feature, backwards compatible | minor (`0.1.1 → 0.2.0`) |
-| Breaking API change | major (`0.1.1 → 1.0.0`) |

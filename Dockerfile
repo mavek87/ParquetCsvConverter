@@ -23,6 +23,13 @@ COPY pyproject.toml uv.lock ./
 ENV UV_PROJECT_ENVIRONMENT=/app/.venv
 RUN uv sync --frozen --no-dev --no-install-project
 
+# Remove packaging metadata and Python bytecode cache (not needed at runtime).
+RUN find /app/.venv \( \
+        -type d -name "*.dist-info" -o \
+        -type d -name "__pycache__" \
+    \) -exec rm -rf {} + 2>/dev/null || true \
+    && find /app/.venv -name "*.pyc" -delete 2>/dev/null || true
+
 # ─────────────────────────────────────────────
 # Stage 2: runtime
 # Minimal image with Python, the pre-built venv,

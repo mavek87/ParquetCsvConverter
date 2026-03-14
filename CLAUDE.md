@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-A Python library for bidirectional Parquet ↔ CSV conversion with column mapping and date-format rules. Supports both fast (Polars lazy) and low-RAM (streaming batch) modes.
+A Python library for bidirectional Parquet ↔ CSV conversion with column mapping and date-format rules. Pure Polars — no PyArrow dependency.
 
 ## Running
 
@@ -29,9 +29,6 @@ uv run -m src -pc data.parquet \
 
 # With rules JSON file
 uv run -m src -pc data.parquet --rules rules_example.json
-
-# Streaming mode (low RAM, for >10 GB files)
-uv run -m src -pc data.parquet --mode streaming --chunk-size 50000
 ```
 
 ```bash
@@ -58,19 +55,25 @@ src/
 **models.py** defines the three key types:
 - `DateFormat` enum: `INSTANT` (epoch int64), `ISO` (datetime string), `DATE` (date string)
 - `ColumnRule(parquet_name, csv_name, date_format)` — per-column rule
-- `ConversionConfig` — collects all rules plus `mode`, `delimiter`, `chunk_size`
+- `ConversionConfig` — collects all rules plus `delimiter`
 
-**converter.py** implements two conversion directions and two modes each:
+**converter.py** implements two conversion directions using Polars lazy evaluation:
 
-| Function | lazy mode | streaming mode |
-|---|---|---|
-| `parquet_to_csv` | `pl.scan_parquet` + `sink_csv` | PyArrow `iter_batches` |
-| `csv_to_parquet` | `pl.scan_csv` + `sink_parquet` | `pl.read_csv_batched` + PyArrow `ParquetWriter` |
+| Function | Engine |
+|---|---|
+| `parquet_to_csv` | `pl.scan_parquet` + `sink_csv` |
+| `csv_to_parquet` | `pl.scan_csv` + `sink_parquet` |
+
+Both `sink_csv` and `sink_parquet` stream data internally, so memory usage stays low regardless of file size.
 
 Transform pipeline for **parquet→csv**: select columns → apply date formats → rename.
 Transform pipeline for **csv→parquet**: rename → apply date parsing.
 
-Both pipelines operate on `pl.LazyFrame` so they compose with either mode (lazy collects the full result; streaming applies them eagerly per batch).
+Both pipelines operate on `pl.LazyFrame` and are composed before the sink call.
+
+Row count for `parquet_to_csv` is read cheaply from the Parquet footer metadata via
+`pl.scan_parquet(path).select(pl.len()).collect().item()` after writing.
+Row count for `csv_to_parquet` is `None` (not cheaply available for CSV input).
 
 **cli.py** builds config from either `--rules FILE.json` or individual flags (`--rename`, `--date-format`, `--select`). `--rules` takes precedence over flags.
 
@@ -85,10 +88,9 @@ config = ConversionConfig(
         ColumnRule(parquet_name="date", csv_name="date", date_format=DateFormat.ISO),
     ],
     select_columns=["isin", "date", "close", "adj_close", "dividends"],
-    mode="lazy",
 )
 result = parquet_to_csv("data.parquet", "data.csv", config)
-print(result)  # "10549175 rows | 76.3 MB → 609.1 MB | 4.21s"
+print(result)  # "10,549,175 rows | 76.3 MB → 609.1 MB | 4.21s"
 ```
 
 ## Rules JSON format
@@ -100,9 +102,7 @@ print(result)  # "10549175 rows | 76.3 MB → 609.1 MB | 4.21s"
     { "parquet_name": "date", "csv_name": "date", "date_format": "iso" }
   ],
   "select_columns": ["isin", "date", "close", "adj_close", "dividends"],
-  "delimiter": ",",
-  "mode": "lazy",
-  "chunk_size": 100000
+  "delimiter": ","
 }
 ```
 
